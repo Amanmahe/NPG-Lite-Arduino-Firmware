@@ -48,6 +48,7 @@ jobs:
         arduino-cli lib install "Adafruit BusIO"
         arduino-cli lib install "Adafruit Unified Sensor"
         arduino-cli lib install "Adafruit MPU6050"
+        arduino-cli lib install "SparkFun BMI270 Arduino Library"
         arduino-cli lib install "WiFiManager"
         arduino-cli lib install "WebSockets"
 
