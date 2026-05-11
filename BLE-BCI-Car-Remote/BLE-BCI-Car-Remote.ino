@@ -11,11 +11,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Copyright (c) 2025 Aman Maheshwari - Aman@upsidedownlabs.tech
-// Copyright (c) 2024 - 2025 Krishnanshu Mittal - krishnanshu@upsidedownlabs.tech
-// Copyright (c) 2024 - 2025 Deepak Khatri - deepak@upsidedownlabs.tech
-// Copyright (c) 2024 - 2025 Upside Down Labs - contact@upsidedownlabs.tech
-
+// Copyright (c) 2024-2025 Aman Maheshwari     - Aman@upsidedownlabs.tech
+// Copyright (c) 2024-2025 Krishnanshu Mittal - krishnanshu@upsidedownlabs.tech
+// Copyright (c) 2024-2025 Deepak Khatri      - deepak@upsidedownlabs.tech
+// Copyright (c) 2024-2025 Upside Down Labs   - contact@upsidedownlabs.tech
+//
 // At Upside Down Labs, we create open-source DIY neuroscience hardware and software.
 // Our mission is to make neuroscience affordable and accessible for everyone.
 // By supporting us with your purchase, you help spread innovation and open science.
@@ -27,7 +27,6 @@
  YouTube video: https://www.youtube.com/watch?v=s3yoZa6kzus
 */
 #include <Adafruit_NeoPixel.h>
-
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -35,94 +34,79 @@
 #include <Arduino.h>
 #include "esp_dsp.h"
 #include <vector>
-// constants won't change. They're used here to set pin numbers:
 
-// Variables will change:
-uint32_t buttonState;       // the current reading from the input pin
-int lastButtonState = LOW;  // the previous reading from the input pin
-uint32_t bci_val = 0;       // EEG-based control value (0=stop, 3=forward)
-uint32_t emg1_val1 = 0;     // Left EMG control value (0=inactive, 1=left turn)
-uint32_t emg2_val2 = 0;     // Right EMG control value (0=inactive, 2=right turn)
-uint32_t bootback_val = 4;  // Button toggle value (4=toggle state)
-
-// the following variables are unsigned longs because the time, measured in
-// milliseconds, will quickly become a bigger number than can be stored in an int.
-unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
-
-// Initialize all pointers
-BLEServer *pServer = NULL;                    // Pointer to the server
-BLECharacteristic *pCharacteristic_1 = NULL;  // Pointer to Characteristic 1
-BLECharacteristic *pCharacteristic_2 = NULL;  // Pointer to Characteristic 2
-BLEDescriptor *pDescr_1;                      // Pointer to Descriptor of Characteristic 1
-BLE2902 *pBLE2902_1;                          // Pointer to BLE2902 of Characteristic 1
-BLE2902 *pBLE2902_2;                          // Pointer to BLE2902 of Characteristic 2
-
-// Some variables to keep track on device connected
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
-Adafruit_NeoPixel pixel(6, 15, NEO_GRB + NEO_KHZ800);
-
-// Variable that will continuously be increased and written to the client
-uint32_t value = 0;
-uint32_t betaThreshold = 4;
-uint32_t emgThreshold = 150;
-bool isGoingBackward = false;  // Flag to track backward state
-
-// See the following for generating UUIDs:
-// https://www.uuidgenerator.net/
-// UUIDs used in this example:
-#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+// ---------------------------------------------------------------
+//  BLE UUIDs
+// ---------------------------------------------------------------
+#define SERVICE_UUID          "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID_1 "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define CHARACTERISTIC_UUID_2 "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e"
 
-// Callback function that is called whenever a client is connected or disconnected
-class MyServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer *pServer) {
-    deviceConnected = true;
-  };
+// ---------------------------------------------------------------
+//  Hardware pins
+// ---------------------------------------------------------------
+#define PIN_NEOPIXEL  15
+#define PIN_LED_VIB    7   // NPG Lite: shared LED + vibration motor
 
-  void onDisconnect(BLEServer *pServer) {
-    deviceConnected = false;
-  }
-};
+Adafruit_NeoPixel pixel(6, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
-// ----------------- USER CONFIGURATION -----------------
-#define SAMPLE_RATE 512  // samples per second
-#define FFT_SIZE 512     // must be a power of two
-#define BAUD_RATE 115200
-#define INPUT_PIN1 A0  // EEG input pin
-#define INPUT_PIN2 A1  // Left hand EMG input pin
-#define INPUT_PIN3 A2  // Right hand EMG input pin
+// ---------------------------------------------------------------
+//  Signal processing config
+// ---------------------------------------------------------------
+#define SAMPLE_RATE      512
+#define FFT_SIZE         512
+#define BAUD_RATE        115200
+#define INPUT_PIN1       A0    // EEG
+#define INPUT_PIN2       A1    // Left EMG
+#define INPUT_PIN3       A2    // Right EMG
 
-// EEG bands (Hz)
-#define DELTA_LOW 0.5f
-#define DELTA_HIGH 4.0f
-#define THETA_LOW 4.0f
-#define THETA_HIGH 8.0f
-#define ALPHA_LOW 8.0f
-#define ALPHA_HIGH 13.0f
-#define BETA_LOW 13.0f
-#define BETA_HIGH 30.0f
-#define GAMMA_LOW 30.0f
-#define GAMMA_HIGH 45.0f
-
+#define DELTA_LOW        0.5f
+#define DELTA_HIGH       4.0f
+#define THETA_LOW        4.0f
+#define THETA_HIGH       8.0f
+#define ALPHA_LOW        8.0f
+#define ALPHA_HIGH       13.0f
+#define BETA_LOW         13.0f
+#define BETA_HIGH        30.0f
+#define GAMMA_LOW        30.0f
+#define GAMMA_HIGH       45.0f
 #define SMOOTHING_FACTOR 0.63f
-#define EPS 1e-7f
+#define EPS              1e-7f
 
-// ----------------- BUFFERS & TYPES -----------------
+// ---------------------------------------------------------------
+//  Thresholds - tune to your signal levels
+// ---------------------------------------------------------------
+uint32_t betaThreshold = 4;    // % of total EEG power
+uint32_t emgThreshold  = 150;  // EMG envelope ADC counts
+
+// ---------------------------------------------------------------
+//  BLE objects
+// ---------------------------------------------------------------
+BLEServer         *pServer           = NULL;
+BLECharacteristic *pCharacteristic_1 = NULL;
+BLECharacteristic *pCharacteristic_2 = NULL;
+BLEDescriptor     *pDescr_1;
+BLE2902           *pBLE2902_1;
+BLE2902           *pBLE2902_2;
+
+bool deviceConnected    = false;
+bool oldDeviceConnected = false;
+
+// ---------------------------------------------------------------
+//  Control state
+// ---------------------------------------------------------------
+bool     isGoingBackward = false;
+uint32_t lastSentCmd = 255;  // 255 = nothing sent yet, forces first cmd through
+
+// ---------------------------------------------------------------
+//  DSP buffers
+// ---------------------------------------------------------------
 float inputBuffer[FFT_SIZE];
 float powerSpectrum[FFT_SIZE / 2];
-
-// For two-real FFT trick
 __attribute__((aligned(16))) float y_cf[FFT_SIZE * 2];
 float *y1_cf = &y_cf[0];
 
-typedef struct
-{
-  float delta, theta, alpha, beta, gamma, total;
-} BandpowerResults;
-
+typedef struct { float delta, theta, alpha, beta, gamma, total; } BandpowerResults;
 BandpowerResults smoothedPowers = { 0, 0, 0, 0, 0, 0 };
 
 // ----------------- NOTCH FILTER CLASSES -----------------
@@ -132,38 +116,19 @@ BandpowerResults smoothedPowers = { 0, 0, 0, 0, 0, 0 };
 // Filter is order 2, implemented as second-order sections (biquads).
 // Reference: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html
 class NotchFilter {
-private:
-  struct BiquadState {
-    float z1 = 0;
-    float z2 = 0;
-  };
-
-  BiquadState state1;
-  BiquadState state2;
-
+  struct BiquadState { float z1 = 0, z2 = 0; };
+  BiquadState s1, s2;
 public:
-  float process(float input) {
-    float output = input;
-
-    // First biquad section
-    float x = output - (-1.56858163f * state1.z1) - (0.96424138f * state1.z2);
-    output = 0.96508099f * x + (-1.56202714f * state1.z1) + (0.96508099f * state1.z2);
-    state1.z2 = state1.z1;
-    state1.z1 = x;
-
-    // Second biquad section
-    x = output - (-1.61100358f * state2.z1) - (0.96592171f * state2.z2);
-    output = 1.00000000f * x + (-1.61854514f * state2.z1) + (1.00000000f * state2.z2);
-    state2.z2 = state2.z1;
-    state2.z1 = x;
-
-    return output;
+  float process(float in) {
+    float x   = in - (-1.56858163f * s1.z1) - (0.96424138f * s1.z2);
+    float out  = 0.96508099f * x + (-1.56202714f * s1.z1) + (0.96508099f * s1.z2);
+    s1.z2 = s1.z1; s1.z1 = x;
+    x   = out - (-1.61100358f * s2.z1) - (0.96592171f * s2.z2);
+    out = 1.0f  * x + (-1.61854514f * s2.z1) + (1.0f * s2.z2);
+    s2.z2 = s2.z1; s2.z1 = x;
+    return out;
   }
-
-  void reset() {
-    state1.z1 = state1.z2 = 0;
-    state2.z1 = state2.z2 = 0;
-  }
+  void reset() { s1.z1 = s1.z2 = s2.z1 = s2.z2 = 0; }
 };
 
 // ----------------- EMG FILTER CLASSES -----------------
@@ -171,89 +136,97 @@ public:
 // Sampling rate: 500.0 Hz, frequency: 70.0 Hz.
 // Filter is order 2, implemented as second-order sections (biquads).
 // Reference: https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html
+
 class EMGHighPassFilter {
-private:
-  // Filter state for a single channel
-  double z1 = 0.0;
-  double z2 = 0.0;
-
+  double z1 = 0, z2 = 0;
 public:
-  // Process a single sample
-  double process(double input) {
-    const double x = input - -0.82523238 * z1 - 0.29463653 * z2;
-    const double output = 0.52996723 * x + -1.05993445 * z1 + 0.52996723 * z2;
-
-    // Update state
-    z2 = z1;
-    z1 = x;
-
-    return output;
+  double process(double in) {
+    double x   = in - (-0.82523238) * z1 - (0.29463653) * z2;
+    double out  = 0.52996723 * x + (-1.05993445) * z1 + 0.52996723 * z2;
+    z2 = z1; z1 = x;
+    return out;
   }
-
-  // Reset filter state
-  void reset() {
-    z1 = 0.0;
-    z2 = 0.0;
-  }
+  void reset() { z1 = z2 = 0; }
 };
 
 // Class to calculate EMG Envelope
 class EnvelopeFilter {
-private:
-  std::vector<double> circularBuffer;
-  double sum = 0.0;
-  int dataIndex = 0;
-  const int bufferSize;
-
+  std::vector<double> buf;
+  double sum = 0;
+  int    idx = 0;
+  const int sz;
 public:
-  EnvelopeFilter(int bufferSize)
-    : bufferSize(bufferSize) {
-    circularBuffer.resize(bufferSize, 0.0);
-  }
-
-  double getEnvelope(double absEmg) {
-    sum -= circularBuffer[dataIndex];
-    sum += absEmg;
-    circularBuffer[dataIndex] = absEmg;
-    dataIndex = (dataIndex + 1) % bufferSize;
-    return (sum / bufferSize);
+  EnvelopeFilter(int s) : sz(s) { buf.resize(s, 0.0); }
+  double getEnvelope(double v) {
+    sum -= buf[idx]; sum += v; buf[idx] = v;
+    idx = (idx + 1) % sz;
+    return sum / sz;
   }
 };
 
 // NEW: Low-pass filter for EEG signals
-float EEGFilter(float input) {
-  float output = input;
-  {
-    static float z1 = 0, z2 = 0;
-    float x = output - -1.22465158 * z1 - 0.45044543 * z2;
-    output = 0.05644846 * x + 0.11289692 * z1 + 0.05644846 * z2;
-    z2 = z1;
-    z1 = x;
-  }
-  return output;
+float EEGFilter(float in) {
+  static float z1 = 0, z2 = 0;
+  float x   = in - (-1.22465158f) * z1 - (0.45044543f) * z2;
+  float out  = 0.05644846f * x + 0.11289692f * z1 + 0.05644846f * z2;
+  z2 = z1; z1 = x;
+  return out;
 }
-NotchFilter filters[3];              // Notch filters for all 3 input channels
-EMGHighPassFilter emgfilters[2];     // High-pass filters for EMG channels
-EnvelopeFilter Envelopefilter1(16);  // Envelope detector for left EMG
-EnvelopeFilter Envelopefilter2(16);  // Envelope detector for right EMG
 
-// ----------------- BANDPOWER & SMOOTHING -----------------
-BandpowerResults calculateBandpower(float *ps, float binRes, int halfSize) {
+NotchFilter       filters[3];
+EMGHighPassFilter emgfilters[2];
+EnvelopeFilter    Envelopefilter1(16);
+EnvelopeFilter    Envelopefilter2(16);
+
+// ---------------------------------------------------------------
+//  sendCmd - only transmits over BLE when the command changes.
+// ---------------------------------------------------------------
+void sendCmd(uint32_t cmd) {
+  if (cmd == lastSentCmd) return;
+  lastSentCmd = cmd;
+  uint8_t val = (uint8_t)cmd;
+  pCharacteristic_1->setValue(&val, 1);
+  pCharacteristic_1->notify();
+  Serial.print("cmd: "); Serial.println(cmd);
+}
+
+// ---------------------------------------------------------------
+//  BLE server callbacks
+// ---------------------------------------------------------------
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer *pServer) {
+    deviceConnected = true;
+    for (int i = 0; i < 2; i++) {
+      digitalWrite(PIN_LED_VIB, HIGH);
+      delay(120);
+      digitalWrite(PIN_LED_VIB, LOW);
+      if (i == 0) delay(100);
+    }
+    Serial.println("car connected");
+    BLEDevice::getAdvertising()->stop();
+  }
+  void onDisconnect(BLEServer *pServer) {
+    deviceConnected = false;
+    lastSentCmd = 255;
+    digitalWrite(PIN_LED_VIB, LOW);
+    Serial.println("car disconnected, re-advertising");
+    BLEDevice::startAdvertising();
+  }
+};
+
+// ---------------------------------------------------------------
+//  Bandpower helpers
+// ---------------------------------------------------------------
+BandpowerResults calculateBandpower(float *ps, float binRes, int half) {
   BandpowerResults r = { 0, 0, 0, 0, 0, 0 };
-  for (int i = 1; i < halfSize; i++) {
-    float freq = i * binRes;
-    float p = ps[i];
+  for (int i = 1; i < half; i++) {
+    float freq = i * binRes, p = ps[i];
     r.total += p;
-    if (freq >= DELTA_LOW && freq < DELTA_HIGH)
-      r.delta += p;
-    else if (freq >= THETA_LOW && freq < THETA_HIGH)
-      r.theta += p;
-    else if (freq >= ALPHA_LOW && freq < ALPHA_HIGH)
-      r.alpha += p;
-    else if (freq >= BETA_LOW && freq < BETA_HIGH)
-      r.beta += p;
-    else if (freq >= GAMMA_LOW && freq < GAMMA_HIGH)
-      r.gamma += p;
+    if      (freq >= DELTA_LOW && freq < DELTA_HIGH) r.delta += p;
+    else if (freq >= THETA_LOW && freq < THETA_HIGH) r.theta += p;
+    else if (freq >= ALPHA_LOW && freq < ALPHA_HIGH) r.alpha += p;
+    else if (freq >= BETA_LOW  && freq < BETA_HIGH)  r.beta  += p;
+    else if (freq >= GAMMA_LOW && freq < GAMMA_HIGH) r.gamma += p;
   }
   return r;
 }
@@ -262,116 +235,122 @@ void smoothBandpower(const BandpowerResults *raw, BandpowerResults *s) {
   s->delta = SMOOTHING_FACTOR * raw->delta + (1 - SMOOTHING_FACTOR) * s->delta;
   s->theta = SMOOTHING_FACTOR * raw->theta + (1 - SMOOTHING_FACTOR) * s->theta;
   s->alpha = SMOOTHING_FACTOR * raw->alpha + (1 - SMOOTHING_FACTOR) * s->alpha;
-  s->beta = SMOOTHING_FACTOR * raw->beta + (1 - SMOOTHING_FACTOR) * s->beta;
+  s->beta  = SMOOTHING_FACTOR * raw->beta  + (1 - SMOOTHING_FACTOR) * s->beta;
   s->gamma = SMOOTHING_FACTOR * raw->gamma + (1 - SMOOTHING_FACTOR) * s->gamma;
   s->total = SMOOTHING_FACTOR * raw->total + (1 - SMOOTHING_FACTOR) * s->total;
 }
 
-// ----------------- DSP FFT SETUP -----------------
+// ---------------------------------------------------------------
+//  FFT init + processing
+// ---------------------------------------------------------------
 void initFFT() {
-  // initialize esp-dsp real-FFT (two-real trick)
   esp_err_t err = dsps_fft2r_init_fc32(NULL, FFT_SIZE);
   if (err != ESP_OK) {
     Serial.println("FFT init failed");
-    while (1)
-      delay(10);
+    while (1) delay(10);
   }
 }
 
-// ----------------- FFT + BANDPOWER + PEAK -----------------
 void processFFT() {
-  // pack real→complex: real=inputBuffer, imag=0
   for (int i = 0; i < FFT_SIZE; i++) {
-    y_cf[2 * i] = inputBuffer[i];
-    y_cf[2 * i + 1] = 0.0f;
+    y_cf[2 * i]     = inputBuffer[i];
+    y_cf[2 * i + 1] = 0;
   }
-
-  // FFT
   dsps_fft2r_fc32(y_cf, FFT_SIZE);
   dsps_bit_rev_fc32(y_cf, FFT_SIZE);
   dsps_cplx2reC_fc32(y_cf, FFT_SIZE);
 
-  // magnitude² spectrum
   int half = FFT_SIZE / 2;
   for (int i = 0; i < half; i++) {
-    float re = y1_cf[2 * i];
-    float im = y1_cf[2 * i + 1];
+    float re = y1_cf[2 * i], im = y1_cf[2 * i + 1];
     powerSpectrum[i] = re * re + im * im;
   }
 
-  // detect peak bin (skip i=0)
-  int maxIdx = 1;
-  float maxP = powerSpectrum[1];
-  for (int i = 2; i < half; i++) {
-    if (powerSpectrum[i] > maxP) {
-      maxP = powerSpectrum[i];
-      maxIdx = i;
-    }
-  }
-  float binRes = float(SAMPLE_RATE) / FFT_SIZE;
-  float peakHz = maxIdx * binRes;
-
-  // bandpower & smoothing
-  BandpowerResults raw = calculateBandpower(powerSpectrum, binRes, half);
+  BandpowerResults raw = calculateBandpower(powerSpectrum, float(SAMPLE_RATE) / FFT_SIZE, half);
   smoothBandpower(&raw, &smoothedPowers);
-  float T = smoothedPowers.total + EPS;
-  Serial.println(((smoothedPowers.beta / T) * 100));  // for debugging purpose only
+  float T       = smoothedPowers.total + EPS;
+  float betaPct = (smoothedPowers.beta / T) * 100.0f;
 
-  // If the power exceeds the threshold (set as 4% of the total power), the threshold value can be adjusted based on your beta parameters.
-  if (((smoothedPowers.beta / T) * 100) > betaThreshold && !isGoingBackward) {
-    bci_val = 3;
-    Serial.println("send 3");
-    pCharacteristic_1->setValue(bci_val);  // for forward moving car
-    pCharacteristic_1->notify();
-    digitalWrite(7, HIGH);  // Visual feedback
+  Serial.println(betaPct);
+
+  if (betaPct > betaThreshold && !isGoingBackward) {
+    sendCmd(3);
   } else {
-    bci_val = 0;
-    pCharacteristic_1->setValue(bci_val);
-    pCharacteristic_1->notify();
-    digitalWrite(7, LOW);
+    sendCmd(0);
   }
 }
 
-void setup() {
-  // ----- Initialize Neopixel LED -----
-  pixel.begin();
-  // Set the Neopixel to red (indicating device turned on)
-  pixel.setPixelColor(0, pixel.Color(0, 0, 0));
+// ---------------------------------------------------------------
+//  NeoPixel
+// ---------------------------------------------------------------
+void updatePixels() {
+  pixel.setPixelColor(0, pixel.Color(255, 165, 0));
+  pixel.setPixelColor(5, deviceConnected
+    ? pixel.Color(0, 255, 0)
+    : pixel.Color(255, 0, 0));
   pixel.setPixelColor(2, pixel.Color(0, 0, 0));
-  pixel.setPixelColor(5, pixel.Color(0, 0, 0));
   pixel.show();
+}
+
+// ---------------------------------------------------------------
+//  MAC prompt - waits for user to type MAC over Serial, then
+//  prints a clean confirmation.  Called once from setup() so the
+//  user can copy the address into the car firmware.
+// ---------------------------------------------------------------
+void printMacAddress() {
+  // BLEDevice must be init'd before calling getAddress()
+  String mac = BLEDevice::getAddress().toString().c_str();
+  Serial.println("============================================");
+  Serial.println("  NPG Lite MAC Address (copy this value)   ");
+  Serial.println("============================================");
+  Serial.println(mac);
+  Serial.println("Paste the MAC above into the car firmware  ");
+  Serial.println("when prompted, then reset the car.         ");
+  Serial.println("============================================");
+}
+
+// ---------------------------------------------------------------
+//  Setup
+// ---------------------------------------------------------------
+void setup() {
+  pixel.begin();
+  pixel.clear();
+  pixel.show();
+
   Serial.begin(BAUD_RATE);
-  pinMode(INPUT_PIN1, INPUT);
-  pinMode(INPUT_PIN2, INPUT);
-  pinMode(INPUT_PIN3, INPUT);
+
+  pinMode(INPUT_PIN1,  INPUT);
+  pinMode(INPUT_PIN2,  INPUT);
+  pinMode(INPUT_PIN3,  INPUT);
+  pinMode(PIN_LED_VIB, OUTPUT);
+  digitalWrite(PIN_LED_VIB, LOW);
 
   initFFT();
 
-  // Create the BLE Device
-  BLEDevice::init("ESP32");
+  // Init BLE first so we can read the MAC address
+  BLEDevice::init("UDL-BCI-Car");
 
-  // Create the BLE Server
+  // Print MAC so the user can copy it into the car firmware
+  printMacAddress();
+
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  // Create the BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
-  // Create a BLE Characteristic
   pCharacteristic_1 = pService->createCharacteristic(
-    CHARACTERISTIC_UUID_1,
-    BLECharacteristic::PROPERTY_NOTIFY);
+    CHARACTERISTIC_UUID_1, BLECharacteristic::PROPERTY_NOTIFY);
 
   pCharacteristic_2 = pService->createCharacteristic(
     CHARACTERISTIC_UUID_2,
-    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+    BLECharacteristic::PROPERTY_READ  |
+    BLECharacteristic::PROPERTY_WRITE |
+    BLECharacteristic::PROPERTY_NOTIFY);
 
-  // Create a BLE Descriptor
   pDescr_1 = new BLEDescriptor((uint16_t)0x2901);
-  pDescr_1->setValue("A very interesting variable");
+  pDescr_1->setValue("BCI Car Control");
   pCharacteristic_1->addDescriptor(pDescr_1);
 
-  // Add the BLE2902 Descriptor because we are using "PROPERTY_NOTIFY"
   pBLE2902_1 = new BLE2902();
   pBLE2902_1->setNotifications(true);
   pCharacteristic_1->addDescriptor(pBLE2902_1);
@@ -380,41 +359,43 @@ void setup() {
   pBLE2902_2->setNotifications(true);
   pCharacteristic_2->addDescriptor(pBLE2902_2);
 
-  // Start the service
   pService->start();
 
-  // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(false);
-  pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMaxPreferred(0x12);
   BLEDevice::startAdvertising();
-  Serial.println("Waiting a client connection to notify...");
+
+  updatePixels();
+  Serial.println("Advertising, waiting for car...");
 }
 
+// ---------------------------------------------------------------
+//  Loop
+// ---------------------------------------------------------------
 void loop() {
-  static uint16_t idx = 0;
+  static uint16_t      idx        = 0;
   static unsigned long lastMicros = micros();
+  static bool          pixelDirty = true;
+
   unsigned long now = micros(), dt = now - lastMicros;
   lastMicros = now;
-  pixel.setPixelColor(0, pixel.Color(255, 255, 0));  // Yellow indicating running
-  // Update NeoPixel based on connection status
-  if (deviceConnected) {
-    pixel.setPixelColor(5, pixel.Color(0, 255, 0));  // Green when connected
-  } else {
-    pixel.setPixelColor(5, pixel.Color(255, 0, 0));  // Red when disconnected
-  }
-  pixel.show();
+
+  if (deviceConnected != oldDeviceConnected) pixelDirty = true;
+  if (pixelDirty) { updatePixels(); pixelDirty = false; }
 
   static long timer = 0;
   timer -= dt;
   if (timer <= 0) {
     timer += 1000000L / SAMPLE_RATE;
+
     int raw1 = analogRead(INPUT_PIN1);
     int raw2 = analogRead(INPUT_PIN2);
     int raw3 = analogRead(INPUT_PIN3);
 
-    float filteeg = EEGFilter(filters[0].process(raw1));
+    float filteeg  = EEGFilter(filters[0].process(raw1));
     float filtemg1 = emgfilters[0].process(filters[1].process(raw2));
     float filtemg2 = emgfilters[1].process(filters[2].process(raw3));
     inputBuffer[idx++] = filteeg;
@@ -422,48 +403,33 @@ void loop() {
     float env1 = Envelopefilter1.getEnvelope(abs(filtemg1));
     float env2 = Envelopefilter2.getEnvelope(abs(filtemg2));
 
-    // If `env1` exceeds 150, trigger left turn command (send value 1).the threshold value can be adjusted based on your emg parameters.
-    if (env1 > emgThreshold * 0.8 && env2 > emgThreshold * 0.8) {
-      bootback_val = 4;
-      isGoingBackward = true;                      // Set backward flag
-      Serial.println("sent 4 - BOTH EMG ACTIVE");  // for debugging purpose only
-      pCharacteristic_1->setValue(bootback_val);   // send value 4
-      pCharacteristic_1->notify();
-    } else if (env1 > emgThreshold) {
-      emg1_val1 = 2;
-      isGoingBackward = false;                 // Not going backward anymore
-      Serial.println("sent 2");                // for debugging purpose only
-      pCharacteristic_1->setValue(emg1_val1);  // for left turn car
-      pCharacteristic_1->notify();
-    }
-    // If `env2` exceeds 150, trigger right turn command (send value 2).the threshold value can be adjusted based on your emg parameters.
-    else if (env2 > emgThreshold) {
-      emg2_val2 = 1;
-      isGoingBackward = false;  // Not going backward anymore
-
-      Serial.println("sent 1");                // for debugging purpose only
-      pCharacteristic_1->setValue(emg2_val2);  // for right turn car
-      pCharacteristic_1->notify();
-    } else {
-      isGoingBackward = false;  // Reset backward flag
+    if (deviceConnected) {
+      if (env1 > emgThreshold * 0.5 && env2 > emgThreshold * 0.5) {
+        isGoingBackward = true;
+        sendCmd(4);
+      } else if (env1 > emgThreshold && !isGoingBackward) {
+        isGoingBackward = false;
+        sendCmd(2);
+      } else if (env2 > emgThreshold && !isGoingBackward) {
+        isGoingBackward = false;
+        sendCmd(1);
+      } else {
+        isGoingBackward = false;
+      }
     }
   }
 
   if (idx >= FFT_SIZE) {
-    processFFT();
+    if (deviceConnected) processFFT();
     idx = 0;
   }
 
-  // Disconnecting
   if (!deviceConnected && oldDeviceConnected) {
-    delay(500);                   // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising();  // restart advertising
-    Serial.println("start advertising");
-    oldDeviceConnected = deviceConnected;
+    delay(300);
+    BLEDevice::startAdvertising();
+    oldDeviceConnected = false;
   }
-  // Connecting
   if (deviceConnected && !oldDeviceConnected) {
-    // do stuff here on connecting
-    oldDeviceConnected = deviceConnected;
+    oldDeviceConnected = true;
   }
 }
