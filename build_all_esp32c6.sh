@@ -11,7 +11,6 @@ arduino-cli core update-index
 arduino-cli core install esp32:esp32@3.2.0
 arduino-cli lib install "BLE"
 arduino-cli lib install "Adafruit NeoPixel"
-arduino-cli lib install "ESP32 ESP-DSP"
 arduino-cli lib install "WiFi"
 arduino-cli lib install "WiFiUdp"
 arduino-cli lib install "WebServer"
