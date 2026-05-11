@@ -30,7 +30,6 @@ compile_project() {
     --libraries "$LIBRARY_DIR" \
     --export-binaries \
     --warnings default \
-    --build-property "build.extra_flags=-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1" \
     "$sketch_dir" > "$output_path/compile.log" 2>&1; then
 
     echo "✅ Success"

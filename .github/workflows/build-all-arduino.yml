@@ -51,7 +51,6 @@ jobs:
         arduino-cli lib install "SparkFun BMI270 Arduino Library"
         arduino-cli lib install "WiFiManager"
         arduino-cli lib install "WebSockets"
-        arduino-cli lib install "Adafruit NeoPixel@1.12.3"
 
     - name: 🏗️ Create build directory
       if: steps.check-release.outputs.exists == 'false'
