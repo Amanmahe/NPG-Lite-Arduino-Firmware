@@ -12,11 +12,6 @@ arduino-cli core install esp32:esp32@3.2.0
 arduino-cli lib install "BLE"
 arduino-cli lib install "Adafruit NeoPixel"
 arduino-cli lib install "WiFi"
-arduino-cli lib install "WiFiUdp"
-arduino-cli lib install "WebServer"
-arduino-cli lib install "ESPmDNS"
-arduino-cli lib install "Update"
-arduino-cli lib install "Preferences"
 
 # Create fresh output directory
 rm -rf "$OUTPUT_DIR"
@@ -37,6 +32,7 @@ compile_project() {
     --libraries "$LIBRARY_DIR" \
     --export-binaries \
     --warnings default \
+    --build-property "build.extra_flags=-DARDUINO_USB_MODE=1 -DARDUINO_USB_CDC_ON_BOOT=1" \
     "$sketch_dir" > "$output_path/compile.log" 2>&1; then
 
     echo "✅ Success"

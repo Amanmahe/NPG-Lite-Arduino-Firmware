@@ -52,11 +52,6 @@ jobs:
         arduino-cli lib install "WiFiManager"
         arduino-cli lib install "WebSockets"
         arduino-cli lib install "WiFi"
-        arduino-cli lib install "WiFiUdp"
-        arduino-cli lib install "WebServer"
-        arduino-cli lib install "ESPmDNS"
-        arduino-cli lib install "Update"
-        arduino-cli lib install "Preferences"
 
     - name: 🏗️ Create build directory
       if: steps.check-release.outputs.exists == 'false'
