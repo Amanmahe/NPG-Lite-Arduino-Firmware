@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// Copyright (c) 2024-2025 Aman Maheshwari     - Aman@upsidedownlabs.tech
+// Copyright (c) 2024-2025 Aman Maheshwari    - Aman@upsidedownlabs.tech
 // Copyright (c) 2024-2025 Krishnanshu Mittal - krishnanshu@upsidedownlabs.tech
 // Copyright (c) 2024-2025 Deepak Khatri      - deepak@upsidedownlabs.tech
 // Copyright (c) 2024-2025 Upside Down Labs   - contact@upsidedownlabs.tech
@@ -34,13 +34,14 @@
 #include <Arduino.h>
 #include "esp_dsp.h"
 #include <vector>
+#include <Preferences.h>
 
 // ---------------------------------------------------------------
 //  BLE UUIDs
 // ---------------------------------------------------------------
-#define SERVICE_UUID          "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID_1 "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-#define CHARACTERISTIC_UUID_2 "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e"
+#define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID_1  "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CHARACTERISTIC_UUID_2  "1c95d5e3-d8f7-413a-bf3d-7a2e5d7be87e"
 
 // ---------------------------------------------------------------
 //  Hardware pins
@@ -53,31 +54,48 @@ Adafruit_NeoPixel pixel(6, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // ---------------------------------------------------------------
 //  Signal processing config
 // ---------------------------------------------------------------
-#define SAMPLE_RATE      512
-#define FFT_SIZE         512
-#define BAUD_RATE        115200
-#define INPUT_PIN1       A0    // EEG
-#define INPUT_PIN2       A1    // Left EMG
-#define INPUT_PIN3       A2    // Right EMG
+#define SAMPLE_RATE   512
+#define FFT_SIZE      512
+#define BAUD_RATE     115200
+#define INPUT_PIN1    A0   // EEG
+#define INPUT_PIN2    A1   // Left EMG
+#define INPUT_PIN3    A2   // Right EMG
 
-#define DELTA_LOW        0.5f
-#define DELTA_HIGH       4.0f
-#define THETA_LOW        4.0f
-#define THETA_HIGH       8.0f
-#define ALPHA_LOW        8.0f
-#define ALPHA_HIGH       13.0f
-#define BETA_LOW         13.0f
-#define BETA_HIGH        30.0f
-#define GAMMA_LOW        30.0f
-#define GAMMA_HIGH       45.0f
+#define DELTA_LOW   0.5f
+#define DELTA_HIGH  4.0f
+#define THETA_LOW   4.0f
+#define THETA_HIGH  8.0f
+#define ALPHA_LOW   8.0f
+#define ALPHA_HIGH  13.0f
+#define BETA_LOW    13.0f
+#define BETA_HIGH   30.0f
+#define GAMMA_LOW   30.0f
+#define GAMMA_HIGH  45.0f
 #define SMOOTHING_FACTOR 0.63f
-#define EPS              1e-7f
+#define EPS 1e-7f
 
 // ---------------------------------------------------------------
-//  Thresholds - tune to your signal levels
+//  Debug print rate: print every N samples (500 Hz / N = print Hz)
+//  e.g. N=50 → 10 Hz,  N=5 → 100 Hz,  N=500 → 1 Hz
 // ---------------------------------------------------------------
-uint32_t betaThreshold = 4;    // % of total EEG power
-uint32_t emgThreshold  = 150;  // EMG envelope ADC counts
+#define DEBUG_PRINT_EVERY_N_SAMPLES 100
+
+// ---------------------------------------------------------------
+//  Thresholds - loaded from NVS on boot
+// ---------------------------------------------------------------
+uint32_t betaThreshold = 4;
+uint32_t emg1Threshold = 150;
+uint32_t emg2Threshold = 150;
+
+Preferences prefs;
+
+// ---------------------------------------------------------------
+//  Globals shared between loop() and debug
+// ---------------------------------------------------------------
+float gBetaPct = 0.0f;
+float gEnv1    = 0.0f;
+float gEnv2    = 0.0f;
+bool  debugEnabled = false;
 
 // ---------------------------------------------------------------
 //  BLE objects
@@ -96,7 +114,7 @@ bool oldDeviceConnected = false;
 //  Control state
 // ---------------------------------------------------------------
 bool     isGoingBackward = false;
-uint32_t lastSentCmd = 255;  // 255 = nothing sent yet, forces first cmd through
+uint32_t lastSentCmd     = 255;
 
 // ---------------------------------------------------------------
 //  DSP buffers
@@ -106,7 +124,9 @@ float powerSpectrum[FFT_SIZE / 2];
 __attribute__((aligned(16))) float y_cf[FFT_SIZE * 2];
 float *y1_cf = &y_cf[0];
 
-typedef struct { float delta, theta, alpha, beta, gamma, total; } BandpowerResults;
+typedef struct {
+  float delta, theta, alpha, beta, gamma, total;
+} BandpowerResults;
 BandpowerResults smoothedPowers = { 0, 0, 0, 0, 0, 0 };
 
 // ----------------- NOTCH FILTER CLASSES -----------------
@@ -124,7 +144,7 @@ public:
     float out  = 0.96508099f * x + (-1.56202714f * s1.z1) + (0.96508099f * s1.z2);
     s1.z2 = s1.z1; s1.z1 = x;
     x   = out - (-1.61100358f * s2.z1) - (0.96592171f * s2.z2);
-    out = 1.0f  * x + (-1.61854514f * s2.z1) + (1.0f * s2.z2);
+    out = 1.0f   * x + (-1.61854514f * s2.z1) + (1.0f * s2.z2);
     s2.z2 = s2.z1; s2.z1 = x;
     return out;
   }
@@ -149,7 +169,9 @@ public:
   void reset() { z1 = z2 = 0; }
 };
 
-// Class to calculate EMG Envelope
+// ---------------------------------------------------------------
+//  Envelope filter
+// ---------------------------------------------------------------
 class EnvelopeFilter {
   std::vector<double> buf;
   double sum = 0;
@@ -158,13 +180,17 @@ class EnvelopeFilter {
 public:
   EnvelopeFilter(int s) : sz(s) { buf.resize(s, 0.0); }
   double getEnvelope(double v) {
-    sum -= buf[idx]; sum += v; buf[idx] = v;
+    sum -= buf[idx];
+    sum += v;
+    buf[idx] = v;
     idx = (idx + 1) % sz;
     return sum / sz;
   }
 };
 
-// NEW: Low-pass filter for EEG signals
+// ---------------------------------------------------------------
+//  EEG low-pass filter
+// ---------------------------------------------------------------
 float EEGFilter(float in) {
   static float z1 = 0, z2 = 0;
   float x   = in - (-1.22465158f) * z1 - (0.45044543f) * z2;
@@ -173,10 +199,10 @@ float EEGFilter(float in) {
   return out;
 }
 
-NotchFilter       filters[3];
+NotchFilter      filters[3];
 EMGHighPassFilter emgfilters[2];
-EnvelopeFilter    Envelopefilter1(16);
-EnvelopeFilter    Envelopefilter2(16);
+EnvelopeFilter   Envelopefilter1(16);
+EnvelopeFilter   Envelopefilter2(16);
 
 // ---------------------------------------------------------------
 //  sendCmd - only transmits over BLE when the command changes.
@@ -187,7 +213,91 @@ void sendCmd(uint32_t cmd) {
   uint8_t val = (uint8_t)cmd;
   pCharacteristic_1->setValue(&val, 1);
   pCharacteristic_1->notify();
-  Serial.print("cmd: "); Serial.println(cmd);
+  Serial.print("cmd: ");
+  Serial.println(cmd);
+}
+
+// ---------------------------------------------------------------
+//  MAC address helper
+// ---------------------------------------------------------------
+void printMacAddress() {
+  String mac = BLEDevice::getAddress().toString().c_str();
+  Serial.println("============================================");
+  Serial.println("  NPG Lite MAC Address (copy this line)   ");
+  Serial.println("============================================");
+  Serial.println("Set MAC " + mac);
+  Serial.println("Paste the line above into the car firmware  ");
+  Serial.println("when prompted, then reset the car.         ");
+  Serial.println("============================================");
+}
+
+// ---------------------------------------------------------------
+//  Serial command parser
+// ---------------------------------------------------------------
+void handleSerialCommands() {
+  if (!Serial.available()) return;
+
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  line.toLowerCase();
+
+  if (line == "debug") {
+    debugEnabled = true;
+    Serial.println("Debug mode ENABLED");
+    Serial.print("Print rate: every ");
+    Serial.print(DEBUG_PRINT_EVERY_N_SAMPLES);
+    Serial.print(" samples (~");
+    Serial.print(SAMPLE_RATE / DEBUG_PRINT_EVERY_N_SAMPLES);
+    Serial.println(" Hz)");
+    return;
+  }
+
+  if (line == "mac") {
+    printMacAddress();
+    return;
+  }
+
+  if (line == "exit") {
+    debugEnabled = false;
+    Serial.println("Debug mode DISABLED");
+    return;
+  }
+
+  if (line.startsWith("set ")) {
+    int firstSpace  = line.indexOf(' ');
+    int secondSpace = line.indexOf(' ', firstSpace + 1);
+    if (secondSpace == -1) {
+      Serial.println("Usage: set <betathreshold|emg1threshold|emg2threshold> <value>");
+      return;
+    }
+    String   key    = line.substring(firstSpace + 1, secondSpace);
+    String   valStr = line.substring(secondSpace + 1);
+    valStr.trim();
+    uint32_t val = (uint32_t)valStr.toInt();
+
+    prefs.begin("thresholds", false);
+
+    if (key == "betathreshold") {
+      betaThreshold = val;
+      prefs.putUInt("betathr", betaThreshold);
+      Serial.print("betaThreshold set to "); Serial.println(betaThreshold);
+    } else if (key == "emg1threshold") {
+      emg1Threshold = val;
+      prefs.putUInt("emg1thr", emg1Threshold);
+      Serial.print("emg1Threshold set to "); Serial.println(emg1Threshold);
+    } else if (key == "emg2threshold") {
+      emg2Threshold = val;
+      prefs.putUInt("emg2thr", emg2Threshold);
+      Serial.print("emg2Threshold set to "); Serial.println(emg2Threshold);
+    } else {
+      Serial.print("Unknown key: "); Serial.println(key);
+    }
+
+    prefs.end();
+    return;
+  }
+
+  Serial.print("Unknown command: "); Serial.println(line);
 }
 
 // ---------------------------------------------------------------
@@ -268,45 +378,28 @@ void processFFT() {
 
   BandpowerResults raw = calculateBandpower(powerSpectrum, float(SAMPLE_RATE) / FFT_SIZE, half);
   smoothBandpower(&raw, &smoothedPowers);
-  float T       = smoothedPowers.total + EPS;
-  float betaPct = (smoothedPowers.beta / T) * 100.0f;
+  float T   = smoothedPowers.total + EPS;
+  gBetaPct  = (smoothedPowers.beta / T) * 100.0f;
 
-  Serial.println(betaPct);
-
-  if (betaPct > betaThreshold && !isGoingBackward) {
-    sendCmd(3);
-  } else {
-    sendCmd(0);
+  if (deviceConnected) {
+    if (gBetaPct > betaThreshold && !isGoingBackward) {
+      sendCmd(3);
+    } else {
+      sendCmd(0);
+    }
   }
 }
 
 // ---------------------------------------------------------------
-//  NeoPixel
+//  NeoPixel update
 // ---------------------------------------------------------------
 void updatePixels() {
   pixel.setPixelColor(0, pixel.Color(255, 165, 0));
   pixel.setPixelColor(5, deviceConnected
-    ? pixel.Color(0, 255, 0)
-    : pixel.Color(255, 0, 0));
+                           ? pixel.Color(0, 255, 0)
+                           : pixel.Color(255, 0, 0));
   pixel.setPixelColor(2, pixel.Color(0, 0, 0));
   pixel.show();
-}
-
-// ---------------------------------------------------------------
-//  MAC prompt - waits for user to type MAC over Serial, then
-//  prints a clean confirmation.  Called once from setup() so the
-//  user can copy the address into the car firmware.
-// ---------------------------------------------------------------
-void printMacAddress() {
-  // BLEDevice must be init'd before calling getAddress()
-  String mac = BLEDevice::getAddress().toString().c_str();
-  Serial.println("============================================");
-  Serial.println("  NPG Lite MAC Address (copy this line)   ");
-  Serial.println("============================================");
-  Serial.println("Set MAC "+mac);
-  Serial.println("Paste the line above into the car firmware  ");
-  Serial.println("when prompted, then reset the car.         ");
-  Serial.println("============================================");
 }
 
 // ---------------------------------------------------------------
@@ -319,6 +412,16 @@ void setup() {
 
   Serial.begin(BAUD_RATE);
 
+  prefs.begin("thresholds", true);
+  betaThreshold = prefs.getUInt("betathr",  betaThreshold);
+  emg1Threshold = prefs.getUInt("emg1thr",  emg1Threshold);
+  emg2Threshold = prefs.getUInt("emg2thr",  emg2Threshold);
+  prefs.end();
+
+  Serial.print("Loaded betaThreshold=");  Serial.print(betaThreshold);
+  Serial.print("  emg1Threshold=");       Serial.print(emg1Threshold);
+  Serial.print("  emg2Threshold=");       Serial.println(emg2Threshold);
+
   pinMode(INPUT_PIN1,  INPUT);
   pinMode(INPUT_PIN2,  INPUT);
   pinMode(INPUT_PIN3,  INPUT);
@@ -327,10 +430,7 @@ void setup() {
 
   initFFT();
 
-  // Init BLE first so we can read the MAC address
   BLEDevice::init("UDL-BCI-Car");
-
-  // Print MAC so the user can copy it into the car firmware
   printMacAddress();
 
   pServer = BLEDevice::createServer();
@@ -370,6 +470,13 @@ void setup() {
 
   updatePixels();
   Serial.println("Advertising, waiting for car...");
+  Serial.println("Serial commands:");
+  Serial.println("  debug                      - start debug output");
+  Serial.println("  exit                       - stop debug output");
+  Serial.println("  mac                        - print MAC address");
+  Serial.println("  set betathreshold  <n>     - set beta threshold");
+  Serial.println("  set emg1threshold  <n>     - set EMG1 threshold");
+  Serial.println("  set emg2threshold  <n>     - set EMG2 threshold");
 }
 
 // ---------------------------------------------------------------
@@ -379,38 +486,65 @@ void loop() {
   static uint16_t      idx        = 0;
   static unsigned long lastMicros = micros();
   static bool          pixelDirty = true;
+  static long          timer      = 0;
+
+  // ── debug print counter (counts samples, resets every N) ──
+  static int debugSampleCount = 0;
 
   unsigned long now = micros(), dt = now - lastMicros;
   lastMicros = now;
 
-  if (deviceConnected != oldDeviceConnected) pixelDirty = true;
-  if (pixelDirty) { updatePixels(); pixelDirty = false; }
+  handleSerialCommands();
 
-  static long timer = 0;
+  if (deviceConnected != oldDeviceConnected) pixelDirty = true;
+  if (pixelDirty) {
+    updatePixels();
+    pixelDirty = false;
+  }
+
   timer -= dt;
   if (timer <= 0) {
     timer += 1000000L / SAMPLE_RATE;
 
+    // ── ADC reads ──
     int raw1 = analogRead(INPUT_PIN1);
     int raw2 = analogRead(INPUT_PIN2);
     int raw3 = analogRead(INPUT_PIN3);
 
+    // ── Filtering ──
     float filteeg  = EEGFilter(filters[0].process(raw1));
     float filtemg1 = emgfilters[0].process(filters[1].process(raw2));
     float filtemg2 = emgfilters[1].process(filters[2].process(raw3));
+
     inputBuffer[idx++] = filteeg;
 
-    float env1 = Envelopefilter1.getEnvelope(abs(filtemg1));
-    float env2 = Envelopefilter2.getEnvelope(abs(filtemg2));
+    gEnv1 = Envelopefilter1.getEnvelope(abs(filtemg1));
+    gEnv2 = Envelopefilter2.getEnvelope(abs(filtemg2));
 
+    // ── Debug print — once every N samples, no repetition ──
+    if (debugEnabled) {
+      if (++debugSampleCount >= DEBUG_PRINT_EVERY_N_SAMPLES) {
+        debugSampleCount = 0;
+        Serial.print("beta: ");
+        Serial.print(gBetaPct, 2);
+        Serial.print("  EMG1: ");
+        Serial.print(gEnv1, 2);
+        Serial.print("  EMG2: ");
+        Serial.println(gEnv2, 2);
+      }
+    } else {
+      debugSampleCount = 0;  // reset counter when debug is off
+    }
+
+    // ── EMG control (only when BLE connected) ──
     if (deviceConnected) {
-      if (env1 > emgThreshold * 0.5 && env2 > emgThreshold * 0.5) {
+      if (gEnv1 > emg1Threshold * 0.5 && gEnv2 > emg2Threshold * 0.5) {
         isGoingBackward = true;
         sendCmd(4);
-      } else if (env1 > emgThreshold && !isGoingBackward) {
+      } else if (gEnv1 > emg1Threshold && !isGoingBackward) {
         isGoingBackward = false;
         sendCmd(2);
-      } else if (env2 > emgThreshold && !isGoingBackward) {
+      } else if (gEnv2 > emg2Threshold && !isGoingBackward) {
         isGoingBackward = false;
         sendCmd(1);
       } else {
@@ -419,11 +553,13 @@ void loop() {
     }
   }
 
+  // ── FFT when buffer full ──
   if (idx >= FFT_SIZE) {
-    if (deviceConnected) processFFT();
+    processFFT();
     idx = 0;
   }
 
+  // ── BLE reconnect handling ──
   if (!deviceConnected && oldDeviceConnected) {
     delay(300);
     BLEDevice::startAdvertising();
