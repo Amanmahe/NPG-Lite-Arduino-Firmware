@@ -1,6 +1,6 @@
 # EEG/EMG-Based Drone Control Firmware
 
-This folder contains firmware for **brain–computer / muscle–computer interface** using the **NPG‑Lite** device. The system enables hands‑free control of a **DJI Tello drone** using EEG (brain signals), EMG (muscle activity), eye blinks, and jaw clenches.
+This folder contains firmware for **brain–computer / muscle–computer interface** using the **NPG‑Lite** device. The system enables hands‑free control of a **UFO drone** using EEG (brain signals), EMG (muscle activity), eye blinks, and jaw clenches.
 
 The firmware is designed for **research, demos, and educational neuroscience projects**.
 
@@ -13,7 +13,7 @@ The firmware is designed for **research, demos, and educational neuroscience pro
 * **NPG‑Lite (ESP32-C6 based)**
 * 3 analog input channels:
 
-  * **CH1 (A0)** – EEG + jaw clench detection
+  * **CH1 (A0)** – EEG + blinks + jaw clench detection
   * **CH2 (A1)** – Left‑side EMG
   * **CH3 (A2)** – Right‑side EMG
 * Sampling rate: **512 Hz**
@@ -26,10 +26,10 @@ The firmware is designed for **research, demos, and educational neuroscience pro
 
 ### Controlled Device
 
-* **DJI Tello Drone**
+* **UFO Drone**
 
   * Communication via **Wi‑Fi + UDP**
-  * Uses Tello SDK commands (`takeoff`, `land`, `up`, `down`, `cw`, `forward`, `flip`)
+  * Uses UFO commands (`takeoff`, `land`, `up`, `down`, `rotate`, `forward`)
 
 ---
 
@@ -78,7 +78,7 @@ This placement provides strong blink artifacts and jaw EMG coupling.
 
 ### Entering OTA Mode
 
-Hold the **BOOT button during power-on** (within the first 1 second of boot). The device will start a Wi-Fi Access Point instead of connecting to the Tello.
+Hold the **BOOT button during power-on** (within the first 1 second of boot). The device will start a Wi-Fi Access Point instead of connecting to the UFO.
 
 | Wi-Fi SSID | Password |
 |---|---|
@@ -180,8 +180,8 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
 
 | Mode | LED Color | EMG Left (CH2) | EMG Right (CH3) |
 |---|---|---|---|
-| Vertical Mode | Red | `up` | `down ` |
-| Rotation Mode | Yellow | `forward ` | `rotate right` |
+| Vertical Mode | Red | `up` | `down` |
+| Rotation Mode | Yellow | `forward` | `rotate right` |
 
 * A 500 ms block is applied after each jaw clench to prevent accidental blink or EMG triggers during the clench event.
 * A 500 ms debounce prevents rapid re-triggering.
@@ -194,7 +194,7 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
 |---|---|---|
 | Single Blink | — | No action |
 | Double Blink | ≤ 800 ms between blinks | Reserved / extendable |
-| Triple Blink | ≤ 1000 ms for all three | Drone performs `flip r` |
+| Triple Blink | ≤ 1000 ms for all three | Drone performs `land` |
 
 * Per-blink debounce: **250 ms** (prevents noise re-triggers)
 * Blink detection is **blocked for 500 ms** after a jaw clench event
@@ -217,7 +217,7 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 | Mode | Command Sent |
 |---|---|
 | Vertical Mode | `down` |
-| Rotation Mode | `rotate right` |
+| Rotation Mode | `rotate` |
 
 * EMG controls are **blocked for 500 ms** after a jaw clench event.
 * Command cooldown: **200 ms** between any two UDP commands.
@@ -232,8 +232,8 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 
 ### Behavior When Active
 
-* Immediately sends `land`
-* Sends a second `land` command 5 seconds later
+* Immediately sends `emergency stop`
+* Sends a second `emergency stop` command 5 seconds later
 * All EEG/EMG controls disabled
 * Police‑style LED flashing (Red × 2 flashes → Blue × 2 flashes, cycling)
 * Buzzer alarm: 1 kHz beeping at 300 ms intervals
@@ -250,13 +250,13 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 
 ### Basic Firmware
 
-* Scans for networks starting with `TELLO-` on startup
+* Scans for networks starting with `"FLOW-UFO-` on startup
 * Attempts connection up to 3 times, then continues without drone (orange LED)
 * Checks connection every 5 seconds and attempts one reconnect on drop
 
 ###  Firmware
 
-* Scans for `TELLO-` networks and **retries indefinitely** until connected
+* Scans for `"FLOW-UFO-` networks and **retries indefinitely** until connected
 * On connection loss, immediately re-enters the infinite scan-and-connect loop
 * UDP is re-initialized automatically after reconnect
 * The `command` SDK mode command is sent once after initial connection
@@ -268,7 +268,7 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 | Indicator | Meaning |
 |---|---|
 | Red LED (pixel 5) | Disconnected / error |
-| Green LED (pixel 5) | Tello connected & UDP ready |
+| Green LED (pixel 5) | UFO connected & UDP ready |
 | Orange LED (pixel 5) | Waiting for drone (Basic Firmware) |
 | Yellow LED (pixel 0) | Rotation Mode active |
 | Red LED (pixel 0) | Vertical Mode active |
@@ -286,7 +286,7 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 3. Saved thresholds loaded from flash ( Firmware)
 4. FFT initialized
 5. **OTA check window ( Firmware):** Hold BOOT within first 1 second → enters OTA mode
-6. Scan for and connect to Tello
+6. Scan for and connect to UFO
 7. UDP initialized, `command` sent to enter SDK mode
 8. Web server started
 9. Normal operation begins
@@ -303,5 +303,8 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 * The emergency stop (BOOT button) should always be within reach during operation
 
 ---
+> **Note:** If the drone is landed manually by hand, experiences a collision, or fails to take off correctly, 
+
+> press the **reset button** on the NPG‑Lite to restart the device and clear any stuck state before resuming operation.
 
 > Making neuroscience affordable and accessible for everyone 
