@@ -56,7 +56,7 @@ unsigned long flipStartTime = 0;
 const unsigned long FLIP_PAUSE_MS = 2000; // Pause RC for 2 seconds during flip
 
 // OTA Configuration
-const char *ap_ssid = "ESP32C6_Neuro_Config";
+const char *ap_ssid = "NPG-Lite-Tello";
 const char *ap_password = "12345678";
 WebServer server(80);
 bool otaMode = false;
@@ -475,7 +475,7 @@ void handleRoot()
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>ESP32-C6 Neuro-Controller | NPG LITE Drone</title>
+    <title>Neuro-Controller | NPG LITE Drone</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { min-height: 100%; background: #0a0c12; }

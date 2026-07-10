@@ -82,7 +82,7 @@ Hold the **BOOT button during power-on** (within the first 1 second of boot). Th
 
 | Wi-Fi SSID | Password |
 |---|---|
-| `ESP32C6_Neuro_Config` | `12345678` |
+| `NPG-Lite-Tello` | `12345678` |
 
 Once connected, open a browser and navigate to:
 

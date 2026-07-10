@@ -97,7 +97,7 @@ unsigned long lastConnectionCheck = 0;
 const unsigned long CONNECTION_CHECK_INTERVAL = 5000;
 
 // OTA Configuration
-const char *ap_ssid = "ESP32C6_Neuro_Config";
+const char *ap_ssid = "NPG-Lite-UFO";
 const char *ap_password = "12345678";
 WebServer server(80);
 bool otaMode = false;
