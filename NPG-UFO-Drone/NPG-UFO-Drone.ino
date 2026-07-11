@@ -514,7 +514,7 @@ void handleRoot() {
         .firmware-dropzone-modern { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 3px dashed #ff9f4a; border-radius: 24px; background: #1b1f2b; transition: all 0.25s ease; cursor: pointer; margin-top: 12px; padding: 24px 20px; min-height: 150px; position: relative; }
         .firmware-dropzone-modern.has-file { border: 3px solid #2ecc71 !important; background: #1a2a1f; box-shadow: 0 4px 14px rgba(46,204,113,0.2); }
         .firmware-dropzone-modern.drag-over { border-color: #2ecc71; background: #1f3825; transform: scale(0.99); }
-        .dropzone-text-main { font-size: 1.05rem; font-weight: 600; color: #ffb86b; margin-bottom: 8px; text-align: center; }
+        .dropzone-text-main { font-size: 1.05rem; font-weight: 600; color: #4ADE80; margin-bottom: 8px; text-align: center; }
         .selected-file-card { width: 100%; background: #0e111b; border-radius: 60px; padding: 10px 16px 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.3); border: 1px solid #2e3440; }
         .file-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
         .file-icon { font-size: 1.5rem; }
@@ -767,7 +767,7 @@ void handleRoot() {
       dropZoneModern.classList.add('has-file'); dropZoneModern.style.border = ""; dropZoneModern.style.background = "#1a2a1f";
       const fileName = currentFile.name, fileSize = formatFileSize(currentFile.size);
       let displayName = fileName.length > 40 ? fileName.substring(0, 36) + '...' + fileName.slice(-8) : fileName;
-      selectedFileArea.innerHTML = `<div class="selected-file-card"><div class="file-info"><div class="file-icon">📄</div><div class="file-details"><div class="file-name" title="${fileName}">${displayName}</div><div class="file-size">${fileSize}</div></div></div><div class="action-buttons"><button type="button" id="removeFileBtn" class="remove-file-btn" title="Remove firmware">✕</button><button type="button" id="dynamicUpdateBtn" class="update-btn-small">⚡ UPDATE</button></div></div>`;
+      selectedFileArea.innerHTML = `<div class="selected-file-card"><div class="file-info"><div class="file-icon">📄</div><div class="file-details"><div class="file-name" title="${fileName}">${displayName}</div><div class="file-size">${fileSize}</div></div></div><div class="action-buttons"><button type="button" id="removeFileBtn" class="remove-file-btn" title="Remove firmware">✕</button><button type="button" id="dynamicUpdateBtn" class="update-btn-small">UPDATE</button></div></div>`;
       document.getElementById('removeFileBtn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); clearSelectedFile(); });
       document.getElementById('dynamicUpdateBtn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); triggerFirmwareUpdate(); });
     } else {
@@ -784,7 +784,7 @@ void handleRoot() {
 
   async function triggerFirmwareUpdate() {
     if (!currentFile || !firmwareInput.files || firmwareInput.files.length === 0) { alert('📁 Please select a .bin firmware file first'); return; }
-    if (!confirm('🚀 Update firmware? Device will reboot and reconnect after update.')) return;
+    if (!confirm('Update firmware? Device will reboot and reconnect after update.')) return;
     const updateBtn = document.getElementById('dynamicUpdateBtn');
     const originalText = updateBtn ? updateBtn.innerHTML : 'UPDATE';
     if (updateBtn) { updateBtn.innerHTML = '⏳ Uploading...'; updateBtn.disabled = true; }
@@ -912,9 +912,9 @@ void startOTAMode() {
   WiFi.softAP(ap_ssid, ap_password);
   Serial.print("AP IP address: ");
   Serial.println(WiFi.softAPIP());
-  if (MDNS.begin("droneconfig")) {
+  if (MDNS.begin("npglite")) {
     MDNS.addService("http", "tcp", 80);
-    Serial.println("mDNS: http://droneconfig.local");
+    Serial.println("mDNS: http://npglite.local");
   }
   setupWebServer();
   for (int i = 0; i < 6; i++)

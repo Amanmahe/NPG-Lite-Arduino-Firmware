@@ -4,7 +4,6 @@ This folder contains firmware for **brain–computer / muscle–computer interfa
 
 The firmware is designed for **research, demos, and educational neuroscience projects**.
 
----
 
 ## 1. Hardware Overview
 
@@ -31,7 +30,6 @@ The firmware is designed for **research, demos, and educational neuroscience pro
   * Communication via **Wi‑Fi + UDP**
   * Uses Tello SDK commands (`takeoff`, `land`, `up`, `down`, `cw`, `forward`, `flip`)
 
----
 
 ## 2. Electrode Placement
 
@@ -51,7 +49,6 @@ The firmware is designed for **research, demos, and educational neuroscience pro
 
 This placement provides strong blink artifacts and jaw EMG coupling.
 
----
 
 ### EMG – Left Hand (Channel 2 – A1)
 
@@ -72,7 +69,6 @@ This placement provides strong blink artifacts and jaw EMG coupling.
 * Place electrodes parallel to muscle fibers
 ![Placement Image](./placement.jpeg)
 
----
 
 ## 3. OTA Mode & Web Configuration
 
@@ -87,11 +83,11 @@ Hold the **BOOT button during power-on** (within the first 1 second of boot). Th
 Once connected, open a browser and navigate to:
 
 ```
-http://<device-IP>
+http://192.168.4.1/
 ```
 or (if mDNS is available):
 ```
-http://droneconfig.local
+http://npglite.local
 ```
 
 ### Web Dashboard
@@ -107,7 +103,6 @@ The web interface provides:
 
 **LED indicator in OTA mode:** All 6 NeoPixels pulse purple.
 
----
 
 ## 4. Persistent Threshold Storage 
 
@@ -124,7 +119,6 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
 
 > **Note:** In the  Firmware, the Jaw OFF threshold is automatically set to `Jaw ON threshold − 10` when you adjust the Jaw ON slider.
 
----
 
 ## 5. Signal Processing Pipeline
 
@@ -159,7 +153,6 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
   * ON: `60` (default, adjustable)
   * OFF: `50` (default, adjustable)
 
----
 
 ## 6. User Controls & Interactions
 
@@ -170,7 +163,6 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
   * Drone automatically sends `takeoff`
 * Threshold is adjustable via the web UI ( Firmware)
 
----
 
 ### 6.2 Jaw Clench – Mode Switching
 
@@ -186,7 +178,6 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
 * A 500 ms block is applied after each jaw clench to prevent accidental blink or EMG triggers during the clench event.
 * A 500 ms debounce prevents rapid re-triggering.
 
----
 
 ### 6.3 Eye Blink Controls (EEG Envelope)
 
@@ -199,7 +190,6 @@ All thresholds are saved to **ESP32 flash memory** (via `Preferences`) and autom
 * Per-blink debounce: **250 ms** (prevents noise re-triggers)
 * Blink detection is **blocked for 500 ms** after a jaw clench event
 
----
 
 ### 6.4 EMG‑Based Motion Control
 
@@ -222,7 +212,6 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 * EMG controls are **blocked for 500 ms** after a jaw clench event.
 * Command cooldown: **200 ms** between any two UDP commands.
 
----
 
 ## 7. Emergency Stop System (CRITICAL SAFETY FEATURE)
 
@@ -244,7 +233,6 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 * Normal operation resumes
 * Blink detection state is reset
 
----
 
 ## 8. Wi-Fi & Connection Handling
 
@@ -261,9 +249,9 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 * UDP is re-initialized automatically after reconnect
 * The `command` SDK mode command is sent once after initial connection
 
----
 
 ## 9. LED & Buzzer Indicators
+![NeoPixel Layout](../assets/NPG-LITE-LED-labeled.jpeg)
 
 | Indicator | Meaning |
 |---|---|
@@ -277,7 +265,6 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 | Red/Blue flash (all pixels) | Emergency stop active |
 | Beeping buzzer (1 kHz) | Emergency stop active |
 
----
 
 ## 10. Startup Sequence
 
@@ -291,7 +278,6 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 8. Web server started
 9. Normal operation begins
 
----
 
 ## 11. Intended Use & Disclaimer
 
@@ -301,7 +287,5 @@ Separate thresholds for each hand (adjustable via web UI in  Firmware, fixed at 
 * Maintain clear surroundings
 * Never use near people or animals
 * The emergency stop (BOOT button) should always be within reach during operation
-
----
 
 > Making neuroscience affordable and accessible for everyone 
