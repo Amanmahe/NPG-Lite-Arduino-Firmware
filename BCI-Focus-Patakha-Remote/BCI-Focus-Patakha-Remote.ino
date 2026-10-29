@@ -77,6 +77,7 @@ const IPAddress BROADCAST_IP(192, 168, 4, 255);
 //                   and fires; release -> back to the real EEG
 #define TH_MIN          5.0f
 #define TH_MAX          30.0f
+#define TH_WEB_MAX      40.0f     // dashboard slider goes a bit higher than the button
 #define TH_STEP         2.5f      // 1 NeoPixel = 5 %, a green pixel = +2.5 %
 #define TH_SHOW_MS      2000      // threshold stays on the NeoPixels this long after a click
 #define TEST_RAMP       5.0f      // fake focus rises 5 % per second while held
@@ -590,7 +591,9 @@ void handleSet()
 {
   cors();
   if (!server.hasArg("th")) { server.send(400, "text/plain", "missing th"); return; }
-  focusThreshold = constrain(server.arg("th").toFloat(), 0.0f, 100.0f);
+  float th = server.arg("th").toFloat();
+  if (!isfinite(th)) { server.send(400, "text/plain", "bad th"); return; }
+  focusThreshold = constrain(th, TH_MIN, TH_WEB_MAX);   // th near 0 would fire on any noise
   saveAt = millis() + SAVE_DELAY_MS;          // ctrlTask writes flash later, not here
   forceSend = true;
   server.send(200, "text/plain", "OK");
@@ -618,8 +621,9 @@ void setup()
   digitalWrite(MOTOR_PIN, LOW);
 
   prefs.begin("focus-light", true);
-  focusThreshold = prefs.getFloat("th", 8.0f);
+  float savedTh = prefs.getFloat("th", 8.0f);
   prefs.end();
+  focusThreshold = isfinite(savedTh) ? constrain(savedTh, TH_MIN, TH_WEB_MAX) : 8.0f;
 
   for (int i = 0; i < FFT_SIZE; i++)
     hannWin[i] = 0.5f * (1.0f - cosf(2.0f * PI * i / (FFT_SIZE - 1)));

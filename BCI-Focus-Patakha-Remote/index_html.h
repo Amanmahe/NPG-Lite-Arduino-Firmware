@@ -148,7 +148,7 @@ body.shake .wrap{animation:shk .5s linear}
      <div class="th-val"><span id="thNum">8.0</span><small>%</small></div>
      <button class="step" id="thPlus">+</button>
     </div>
-    <input type="range" id="thSlider" min="0" max="40" step="0.5" value="8">
+    <input type="range" id="thSlider" min="5" max="40" step="0.5" value="8">
    </div>
    <div>
     <h2>Cracker
@@ -184,7 +184,7 @@ const api=p=>fetch(base+p,{cache:'no-store'});
 function setGauge(v,hot){const f=Math.max(0,Math.min(1,v/MAXG));const g=$('gv');g.style.strokeDasharray=(ARC*f)+' 999';g.classList.toggle('hot',hot);}
 function setThMark(t){const f=Math.max(0,Math.min(1,t/MAXG));$('gt').style.strokeDashoffset=-(ARC*f-1.5);}
 function setTh(v,send){
-  th=Math.round(Math.max(0,Math.min(40,v))*2)/2;
+  th=Math.round(Math.max(5,Math.min(40,v))*2)/2;
   $('thNum').textContent=th.toFixed(1); $('thSlider').value=th; setThMark(th);
   if(!send) return;
   editing=true; $('saveTxt').textContent='Saving…';

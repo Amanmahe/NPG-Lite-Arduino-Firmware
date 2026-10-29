@@ -93,6 +93,8 @@ void handlePackets(unsigned long now)
     char buf[48];
     int n = udp.read(buf, sizeof(buf) - 1);
     if (n <= 0) continue;
+    // only the NPG Lite (the hotspot gateway) may fire; ignore other devices on the hotspot
+    if (udp.remoteIP() != WiFi.gatewayIP()) continue;
     buf[n] = 0;
 
     float focus;
