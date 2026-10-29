@@ -4,6 +4,8 @@ Light a Diwali patakha just by concentrating! This firmware runs on the **Neuro 
 
 This is the **brain side** of the project. The igniter side runs on a Seeed Studio XIAO ESP32-C6: see [BCI-Focus-Patakha-Client](../BCI-Focus-Patakha-Client/README.md).
 
+![Focus Patakha dashboard](dashboard.png)
+
 ---
 
 ## How It Works
