@@ -94,6 +94,8 @@ Good skin contact is the difference between a clean focus signal and noise.
 | A0N (Channel 1 −)    | Bony part behind one earlobe |
 | REF                  | Bony part behind the other earlobe |
 
+![EEG electrode placement](eeg-placement.png)
+
 **Tips**
 - Sit still and relax your face and jaw: blinks and jaw clenches show up as big spikes.
 - Keep the NPG Lite on battery, not plugged into the laptop, for the cleanest signal.

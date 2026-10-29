@@ -65,11 +65,15 @@ The XIAO never touches the lighter's high voltage. It only lights the LED inside
 | Driver board output | High-voltage coil → arc electrodes | Makes the spark |
 | 100 µF capacitor + (long leg) / − (striped side) | XIAO 3V3 / XIAO GND | Holds the 3.3 V steady during power dips |
 
+![Focus Patakha wiring diagram](focus_patakha_wiring.png)
+
 > **Why the 100 µF capacitor?** The XIAO and the lighter share one 500 mAh battery. When the arc fires it pulls a burst of current, and the battery voltage dips for a moment. Without the capacitor that dip can reset the XIAO, which then drops off Wi-Fi in the middle of a fire. The capacitor across 3V3 and GND holds the voltage up through the dip. Mind its polarity: the striped leg goes to GND.
 
 4. **Check the button polarity.** If the arc does not fire later, swap the optocoupler's pin 3 and pin 4 wires: a transistor output only conducts one way.
 5. **Route the electrode wires** without bending the electrode tips, so the lighter's original arc gap stays the same. Mount the electrodes where the cracker's fuse can rest in the gap.
 6. **Insulate everything.** Keep the high-voltage coil and its wires away from the XIAO and the battery, and cover exposed joints with heat-shrink.
+
+![Finished igniter board](circuit.jpeg)
 
 ---
 
