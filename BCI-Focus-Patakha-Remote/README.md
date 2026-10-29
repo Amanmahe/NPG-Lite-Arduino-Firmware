@@ -57,6 +57,19 @@ No router or internet is needed. The NPG Lite creates its own Wi-Fi hotspot **`N
 
 ## Flashing the NPG Lite
 
+Two ways to flash: the web flasher is quicker if you only want to run the firmware. Use the Arduino IDE if you plan to change it.
+
+### Web Flasher
+
+Use the [NPG Lite Flasher Web](https://upsidedownlabs.github.io/NPG-Lite-Flasher-Web/) in Chrome or Edge.
+
+1. Switch on the NPG Lite and connect it to your computer with a USB-C cable.
+2. Press **Connect** and pick the **USB JTAG** serial device.
+3. Press **Get from GitHub** and choose the **BCI-Focus-Patakha-Remote** firmware.
+4. Flash it. Once it finishes, press the **RESET** button or replug the cable.
+
+### Arduino IDE
+
 1. Keep `BCI-Focus-Patakha-Remote.ino` and `index_html.h` together in the `BCI-Focus-Patakha-Remote` folder (the folder name must match the `.ino` name).
 2. Open `BCI-Focus-Patakha-Remote.ino`. The page file shows up as a second tab.
 3. Plug in the NPG Lite with a USB-C cable.

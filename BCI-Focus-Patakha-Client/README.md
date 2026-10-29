@@ -79,6 +79,21 @@ The XIAO never touches the lighter's high voltage. It only lights the LED inside
 
 ## Flashing the XIAO
 
+Two ways to flash: the web flasher is quicker if you only want to run the firmware. Use the Arduino IDE if you plan to change it.
+
+### Web Flasher
+
+The same [NPG Lite Flasher Web](https://upsidedownlabs.github.io/NPG-Lite-Flasher-Web/) works for the XIAO, since both boards use the ESP32-C6. Use Chrome or Edge.
+
+1. Connect the XIAO to your computer with a USB-C cable.
+2. Press **Connect** and pick the **USB JTAG** serial device.
+3. Press **Get from GitHub** and choose the **BCI-Focus-Patakha-Client** firmware.
+4. Flash it. Once it finishes, press the XIAO's **RESET** button or replug the cable.
+
+> If the XIAO does not show up, hold its **BOOT** button while plugging in the cable, then try **Connect** again.
+
+### Arduino IDE
+
 1. Open `BCI-Focus-Patakha-Client.ino`.
 2. Plug in the XIAO and select **Tools → Board → XIAO_ESP32C6** and its port.
 3. Click **Upload**, then open the Serial Monitor at **115200 baud**.
